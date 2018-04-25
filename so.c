@@ -73,37 +73,31 @@ void *producer(void *param) {
     int produced=0;  //Amount of items produced
     buffer_item item;
     while(TRUE) {
-        /* sleep for a random period of time */
         int key1 = true;
         int key2 = true;
         int key3 = true;
         int rNum = rand() / RAND_DIVISOR;
-        sleep(rNum);
+        /* sleep for a random period of time */
+       // sleep(rNum);
         /* generate a random number */
         item = rand()%100;
         while(key1)
             key1 = __sync_lock_test_and_set(&lock1, 1);
-        
+        //---------☢----------//
         _empty--;
+	
+	if(insert_item(item) == -1 ){
+	    lock1 = false;
+	}
+      	else{
+		produced++;
+		_full++;
+		printf("Producer %06ld | item %03d -- counter: %3d -- produced: %d\n",
+        	syscall(SYS_gettid), item,counter,produced);
+	}
+	
+	//---------☢----------// 
         lock1 = false;
-
-
-        while(_empty <= 0){}
-        produced++;  
-
-        while(key3)
-            key3 = __sync_lock_test_and_set(&lock3, 1);
-        CHECK(insert_item(item)==0);
-        lock3 = false;
-
-        while(key2)
-            key2 = __sync_lock_test_and_set(&lock2, 1);
-        _full++;
-        lock2 = false;
-
-        printf("Producer %06ld | item %03d -- counter: %3d -- produced: %d\n",
-        syscall(SYS_gettid), item,counter,produced);
-        /* release the mutex lock */
     }
 }
 /* Consumer Thread */
@@ -113,31 +107,28 @@ void *consumer(void *param) {
    while(TRUE) {
         /* sleep for a random period of time */
         int rNum = rand() / RAND_DIVISOR;
-        sleep(rNum);
+      //  sleep(rNum);
         int key1 = true;
-        int key2 = true;
-        int key3 = true;
-
-        while(key2)
-            key2 = __sync_lock_test_and_set(&lock2, 1);
-        _full--;
-        lock2 = false;
-
-        while(_full <= 0){}
-
-        consumed++;
-        while(key3)
-            key3 = __sync_lock_test_and_set(&lock3, 1);
-        CHECK(remove_item(&item)==0); //remove is "protected" by mutex
-        lock3 = false;
 
         while(key1)
-            key1 = __sync_lock_test_and_set(&lock1, 1);
-        _empty++;
+	    key1 = __sync_lock_test_and_set(&lock1, 1);
+	//---------☢----------// 
+        _full--;
+        lock2 = false;
+      
+        if(remove_item(&item)==-1) {
+		lock1 = false;
+	}
+	else{
+		consumed++;
+		_empty++;
+		printf("Consumer %06ld | item %03d -- counter: %3d -- consumed: %d\n",
+        	syscall(SYS_gettid), item,counter,consumed);
+	}
         lock1 = false;   
+        //---------☢----------// 
+
         
-        printf("Consumer %06ld | item %03d -- counter: %3d -- consumed: %d\n",
-        syscall(SYS_gettid), item,counter,consumed);
    }
 }
 
